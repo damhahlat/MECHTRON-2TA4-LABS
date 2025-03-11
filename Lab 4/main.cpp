@@ -6,11 +6,16 @@
 LCD_DISCO_F429ZI lcd;
 TS_DISCO_F429ZI ts;
 
-// Define the analog input pin for the LM35 temperature sensor
-AnalogIn analog_input(PA_0);
+Timeout timeout1;
 
-// Define the analog output pin for the fan (connected to PA_5)
-AnalogOut fan_control(PD_14);
+DigitalOut LedR(PG_14);
+
+// Define the analog input pin for the LM35 temperature sensor
+AnalogIn analog_input(PA_2);
+
+PwmOut motor(PD_14);
+
+
 
 // Constants for screen layout
 #define SCREEN_WIDTH  240
@@ -32,10 +37,25 @@ void update_lcd();
 // Ticker for periodic updates
 Ticker ticker;
 
+float duty=0;
+
+
+int flag=1;
+
+
 // Periodic update function (called by the ticker)
 void periodic_update() {
     // Set flag to update the display
     update_display = true;
+}
+
+void start_motor(){
+    motor.period_ms(100);
+    motor.write(duty);
+    if(duty < 0.7){
+        duty+=0.01;
+        timeout1.attach(start_motor, 1000ms);
+    }
 }
 
 int main() {
@@ -62,14 +82,16 @@ int main() {
 
         // Fan control logic
         if (room_temperature > temperature_threshold) {
-            // Calculate fan speed as a fraction of the excess temperature
-            float excess_temperature = room_temperature - temperature_threshold;
-            float fan_speed = excess_temperature / 5.0f; // Scale factor to limit max speed
-            fan_speed = (fan_speed > 1.0f) ? 1.0f : fan_speed; // Clamp speed to [0.0, 1.0]
-            fan_control.write(fan_speed); // Set fan speed
-            printf("Fan Speed: %.2f\n", fan_speed);
+            LedR = 1;
+            if(flag){
+            timeout1.attach(start_motor, 1000ms);
+            flag = 0;
+            }
         } else {
-            fan_control.write(0.0f); // Turn off the fan
+            LedR=0;
+            flag =1;
+			duty = 0;
+            motor.write(0.0f); // Turn off the fan
             printf("Fan Speed: OFF\n");
         }
 
@@ -167,3 +189,4 @@ void update_lcd() {
     sprintf(threshold_str, "%.1f C", temperature_threshold);
     lcd.DisplayStringAt(0, 160, (uint8_t *)threshold_str, CENTER_MODE);
 }
+
